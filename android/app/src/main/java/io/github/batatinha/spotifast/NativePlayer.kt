@@ -4,8 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.media.AudioAttributes as PlatformAudioAttributes
-import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Handler
@@ -24,7 +22,8 @@ import java.util.concurrent.Executors
  * A Media3 player whose audio is librespot's, in the Rust core. It mirrors
  * the core's state so the media notification, the lock screen, Bluetooth
  * and Android Auto controls work, and sends their buttons back as commands.
- * It also holds audio focus while playing and pauses when headphones go.
+ * It holds audio focus through [PlaybackFocus] while playing and pauses
+ * when headphones go.
  */
 @UnstableApi
 class NativePlayer(private val context: Context) : SimpleBasePlayer(Looper.getMainLooper()) {
@@ -32,35 +31,6 @@ class NativePlayer(private val context: Context) : SimpleBasePlayer(Looper.getMa
     private val io = Executors.newSingleThreadExecutor()
     private var current = PlayerState()
     private var lastJson = ""
-
-    private val audioManager = context.getSystemService(AudioManager::class.java)
-    private var hasFocus = false
-    private var pausedForFocus = false
-    private val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-        .setAudioAttributes(
-            PlatformAudioAttributes.Builder()
-                .setUsage(PlatformAudioAttributes.USAGE_MEDIA)
-                .setContentType(PlatformAudioAttributes.CONTENT_TYPE_MUSIC)
-                .build(),
-        )
-        .setOnAudioFocusChangeListener { change ->
-            when (change) {
-                AudioManager.AUDIOFOCUS_LOSS -> {
-                    hasFocus = false
-                    send("""{"cmd":"pause"}""")
-                }
-                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
-                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> if (current.playing) {
-                    pausedForFocus = true
-                    send("""{"cmd":"pause"}""")
-                }
-                AudioManager.AUDIOFOCUS_GAIN -> if (pausedForFocus) {
-                    pausedForFocus = false
-                    send("""{"cmd":"play"}""")
-                }
-            }
-        }
-        .build()
 
     private val noisy = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -87,6 +57,7 @@ class NativePlayer(private val context: Context) : SimpleBasePlayer(Looper.getMa
     }
 
     init {
+        PlaybackFocus.onCommand = { cmd -> send("""{"cmd":"$cmd"}""") }
         handler.post(poll)
     }
 
@@ -96,10 +67,7 @@ class NativePlayer(private val context: Context) : SimpleBasePlayer(Looper.getMa
 
     private fun followPlayback() {
         if (current.playing) {
-            if (!hasFocus) {
-                hasFocus = audioManager.requestAudioFocus(focusRequest) ==
-                    AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-            }
+            PlaybackFocus.playing(context)
             if (!noisyRegistered) {
                 ContextCompat.registerReceiver(
                     context,
@@ -206,7 +174,7 @@ class NativePlayer(private val context: Context) : SimpleBasePlayer(Looper.getMa
     override fun handleRelease(): ListenableFuture<*> {
         handler.removeCallbacks(poll)
         if (noisyRegistered) context.unregisterReceiver(noisy)
-        audioManager.abandonAudioFocusRequest(focusRequest)
+        PlaybackFocus.release()
         io.shutdown()
         return Futures.immediateVoidFuture()
     }
