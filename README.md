@@ -1,3 +1,8 @@
+> **Spotifast Mobile:** this fork adds an Android app in [`android/`](android/)
+> (a Rust core with a native Jetpack Compose interface). Download the APK
+> from [Releases](https://github.com/batatinhafcbatatinha-pixel/spotifast-mobile/releases).
+> Unofficial and experimental; the desktop app below is upstream's.
+
 <p align="center">
   <img src="docs/assets/images/logo.svg" alt="Spotifast logo" width="88" height="88">
 </p>
