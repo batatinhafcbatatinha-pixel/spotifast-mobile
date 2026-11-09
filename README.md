@@ -14,6 +14,13 @@ A native Android client with a Rust core and a Jetpack Compose interface.</p>
 </p>
 
 <p align="center">
+  <a href="https://github.com/batatinhafcbatatinha-pixel/spotifast-mobile/actions/workflows/android.yml"><img src="https://github.com/batatinhafcbatatinha-pixel/spotifast-mobile/actions/workflows/android.yml/badge.svg" alt="Android build"></a>
+  <a href="https://github.com/batatinhafcbatatinha-pixel/spotifast-mobile/actions/workflows/codeql.yml"><img src="https://github.com/batatinhafcbatatinha-pixel/spotifast-mobile/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
+  <a href="SECURITY.md#checking-a-download"><img src="https://img.shields.io/badge/build_provenance-attested-2ea44f?logo=github" alt="Build provenance attested"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
+</p>
+
+<p align="center">
   <img src="docs/android/library-light.jpg" width="200" alt="Library in the light theme">
   <img src="docs/android/now-playing-cyberpunk.jpg" width="200" alt="Now Playing in the Cyberpunk theme">
   <img src="docs/android/songs-filters.jpg" width="200" alt="Liked Songs sorted and filtered, in the Nord theme">
@@ -97,6 +104,20 @@ playlist editing and Android Auto browsing.
 4. Tap **Set up playback here** and approve playback in the browser.
 
 Everything runs on the phone; no computer is involved after you install.
+
+## Is it safe?
+
+- **Built in the open.** Release APKs are compiled from this repository's
+  source by GitHub Actions, not on someone's computer. Each one carries a
+  signed build provenance attestation, so you can check it came from here,
+  unchanged:
+  `gh attestation verify spotifast-mobile-<version>.apk -R batatinhafcbatatinha-pixel/spotifast-mobile`
+- **Checked on every change.** CodeQL analyses the Kotlin app, the Rust core
+  and the workflows; Dependabot keeps dependencies up to date.
+- **Talks only to Spotify.** No Spotifast server, no analytics, no ads. You
+  sign in in your browser, so the app never sees your password.
+
+[SECURITY.md](SECURITY.md) has the details and how to report a problem.
 
 ## How it is built
 

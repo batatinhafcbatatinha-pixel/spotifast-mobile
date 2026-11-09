@@ -81,10 +81,19 @@ jobs:
           cd dist && sha256sum *.apk > SHA256SUMS.txt && cat SHA256SUMS.txt
 
       - name: Attest build provenance
+        id: attest
         if: github.event_name != 'pull_request'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: android/dist/*.apk
+
+      # The signed attestation travels with the release too, for checking
+      # offline or with other Sigstore tools.
+      - name: Keep the attestation bundle
+        if: github.event_name != 'pull_request'
+        env:
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: cp "$BUNDLE" android/dist/attestation.sigstore.json
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
