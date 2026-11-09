@@ -6,3 +6,4 @@ local.properties
 # Built from core/ by the cargoBuild task.
 app/src/main/jniLibs/
 core/target/
+.kotlin/
