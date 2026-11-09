@@ -20,7 +20,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -263,10 +263,10 @@ private fun LibraryScreen(vm: AppViewModel) {
                 item { PlaybackSetupCard(vm) }
             }
             item { CollectionRow(vm.liked) { vm.open(vm.liked) } }
-            items(vm.playlists, key = { "p" + it.uri }) { CollectionRow(it) { vm.open(it) } }
+            itemsIndexed(vm.playlists, key = { i, _ -> "p$i" }) { _, it -> CollectionRow(it) { vm.open(it) } }
             if (vm.albums.isNotEmpty()) {
                 item { SectionTitle("Albums") }
-                items(vm.albums, key = { "a" + it.uri }) { CollectionRow(it) { vm.open(it) } }
+                itemsIndexed(vm.albums, key = { i, _ -> "a$i" }) { _, it -> CollectionRow(it) { vm.open(it) } }
             }
         }
     }
@@ -448,7 +448,7 @@ private fun CollectionScreen(vm: AppViewModel, collection: Collection) {
                     }
                 }
             } else {
-                items(songs, key = { it.uri + songs.indexOf(it) }) { song ->
+                itemsIndexed(songs, key = { i, _ -> "t$i" }) { _, song ->
                     SongRow(
                         song,
                         current = song.uri == playing,
@@ -484,21 +484,21 @@ private fun SearchScreen(vm: AppViewModel) {
         LazyColumn(Modifier.fillMaxSize()) {
             if (r.songs.isNotEmpty()) {
                 item { SectionTitle("Songs") }
-                items(r.songs, key = { "s" + it.uri }) { song ->
+                itemsIndexed(r.songs, key = { i, _ -> "s$i" }) { _, song ->
                     SongRow(song, song.uri == playing, onClick = { vm.play(null, song) }, onQueue = { vm.queue(song) })
                 }
             }
             if (r.artists.isNotEmpty()) {
                 item { SectionTitle("Artists") }
-                items(r.artists, key = { "r" + it.uri }) { CollectionRow(it) { vm.open(it) } }
+                itemsIndexed(r.artists, key = { i, _ -> "r$i" }) { _, it -> CollectionRow(it) { vm.open(it) } }
             }
             if (r.albums.isNotEmpty()) {
                 item { SectionTitle("Albums") }
-                items(r.albums, key = { "a" + it.uri }) { CollectionRow(it) { vm.open(it) } }
+                itemsIndexed(r.albums, key = { i, _ -> "a$i" }) { _, it -> CollectionRow(it) { vm.open(it) } }
             }
             if (r.playlists.isNotEmpty()) {
                 item { SectionTitle("Playlists") }
-                items(r.playlists, key = { "p" + it.uri }) { CollectionRow(it) { vm.open(it) } }
+                itemsIndexed(r.playlists, key = { i, _ -> "p$i" }) { _, it -> CollectionRow(it) { vm.open(it) } }
             }
         }
     }
