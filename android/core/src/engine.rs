@@ -28,8 +28,6 @@ use librespot_playback::{
 };
 use serde::{Deserialize, Serialize};
 
-const AUDIO_CACHE_LIMIT: u64 = 512 * 1024 * 1024;
-
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct Track {
     uri: String,
@@ -145,11 +143,13 @@ impl Engine {
         // The playback grant's token, with the account it belongs to.
         access_token: Option<(String, String)>,
     ) -> Result<Self> {
+        // No audio cache: every song streams, so storage never grows. Only
+        // the credentials and the volume are kept, a few hundred bytes.
         let cache = Cache::new(
             Some(librespot_dir(data_dir)),
             Some(librespot_dir(data_dir)),
-            Some(cache_dir.join("audio")),
-            Some(AUDIO_CACHE_LIMIT),
+            None,
+            None,
         )
         .context("unable to open the playback cache")?;
         let credentials = match access_token {
@@ -168,6 +168,8 @@ impl Engine {
         let session = Session::new(
             SessionConfig {
                 device_id: device_id(data_dir),
+                // Streaming buffers; emptied each time the app starts.
+                tmp_dir: cache_dir.join("tmp"),
                 ..SessionConfig::default()
             },
             Some(cache),

@@ -12,10 +12,17 @@ android {
         applicationId = "io.github.batatinha.spotifast"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.1.2"
-        ndk {
-            abiFilters += listOf("arm64-v8a", "x86_64")
+        versionCode = 4
+        versionName = "0.1.3"
+    }
+
+    // One APK per architecture, so a phone downloads only its own library.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "x86_64")
+            isUniversalApk = false
         }
     }
 

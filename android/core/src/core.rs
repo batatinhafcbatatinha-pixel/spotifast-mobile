@@ -47,7 +47,12 @@ impl Core {
             return Ok(core);
         }
         std::fs::create_dir_all(&data_dir)?;
-        std::fs::create_dir_all(&cache_dir)?;
+        // Keep storage at its minimum: drop the streaming buffers left by
+        // the last run and the audio cache older versions kept.
+        for stale in ["tmp", "audio"] {
+            let _ = std::fs::remove_dir_all(cache_dir.join(stale));
+        }
+        std::fs::create_dir_all(cache_dir.join("tmp"))?;
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(3)
             .thread_name("spotifast-core")
