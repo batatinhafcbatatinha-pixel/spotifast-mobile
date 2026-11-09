@@ -1205,7 +1205,7 @@ checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 [[package]]
 name = "librespot-audio"
 version = "0.8.0"
-source = "git+https://github.com/batatinhafcbatatinha-pixel/librespot?rev=d12bd3a24e0b7b28f86d56358674754b7837faf6#d12bd3a24e0b7b28f86d56358674754b7837faf6"
+source = "git+https://github.com/batatinhafcbatatinha-pixel/librespot?rev=a786386babc84f084a2bb7525f12598001868880#a786386babc84f084a2bb7525f12598001868880"
 dependencies = [
  "aes",
  "bytes",
@@ -1224,7 +1224,7 @@ dependencies = [
 [[package]]
 name = "librespot-connect"
 version = "0.8.0"
-source = "git+https://github.com/batatinhafcbatatinha-pixel/librespot?rev=d12bd3a24e0b7b28f86d56358674754b7837faf6#d12bd3a24e0b7b28f86d56358674754b7837faf6"
+source = "git+https://github.com/batatinhafcbatatinha-pixel/librespot?rev=a786386babc84f084a2bb7525f12598001868880#a786386babc84f084a2bb7525f12598001868880"
 dependencies = [
  "futures-util",
  "librespot-core",
@@ -1243,7 +1243,7 @@ dependencies = [
 [[package]]
 name = "librespot-core"
 version = "0.8.0"
-source = "git+https://github.com/batatinhafcbatatinha-pixel/librespot?rev=d12bd3a24e0b7b28f86d56358674754b7837faf6#d12bd3a24e0b7b28f86d56358674754b7837faf6"
+source = "git+https://github.com/batatinhafcbatatinha-pixel/librespot?rev=a786386babc84f084a2bb7525f12598001868880#a786386babc84f084a2bb7525f12598001868880"
 dependencies = [
  "aes",
  "base64 0.22.1",
@@ -1301,7 +1301,7 @@ dependencies = [
 [[package]]
 name = "librespot-metadata"
 version = "0.8.0"
-source = "git+https://github.com/batatinhafcbatatinha-pixel/librespot?rev=d12bd3a24e0b7b28f86d56358674754b7837faf6#d12bd3a24e0b7b28f86d56358674754b7837faf6"
+source = "git+https://github.com/batatinhafcbatatinha-pixel/librespot?rev=a786386babc84f084a2bb7525f12598001868880#a786386babc84f084a2bb7525f12598001868880"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1318,7 +1318,7 @@ dependencies = [
 [[package]]
 name = "librespot-oauth"
 version = "0.8.0"
-source = "git+https://github.com/batatinhafcbatatinha-pixel/librespot?rev=d12bd3a24e0b7b28f86d56358674754b7837faf6#d12bd3a24e0b7b28f86d56358674754b7837faf6"
+source = "git+https://github.com/batatinhafcbatatinha-pixel/librespot?rev=a786386babc84f084a2bb7525f12598001868880#a786386babc84f084a2bb7525f12598001868880"
 dependencies = [
  "log",
  "oauth2",
@@ -1332,7 +1332,7 @@ dependencies = [
 [[package]]
 name = "librespot-playback"
 version = "0.8.0"
-source = "git+https://github.com/batatinhafcbatatinha-pixel/librespot?rev=d12bd3a24e0b7b28f86d56358674754b7837faf6#d12bd3a24e0b7b28f86d56358674754b7837faf6"
+source = "git+https://github.com/batatinhafcbatatinha-pixel/librespot?rev=a786386babc84f084a2bb7525f12598001868880#a786386babc84f084a2bb7525f12598001868880"
 dependencies = [
  "cpal",
  "form_urlencoded",
@@ -1355,7 +1355,7 @@ dependencies = [
 [[package]]
 name = "librespot-protocol"
 version = "0.8.0"
-source = "git+https://github.com/batatinhafcbatatinha-pixel/librespot?rev=d12bd3a24e0b7b28f86d56358674754b7837faf6#d12bd3a24e0b7b28f86d56358674754b7837faf6"
+source = "git+https://github.com/batatinhafcbatatinha-pixel/librespot?rev=a786386babc84f084a2bb7525f12598001868880#a786386babc84f084a2bb7525f12598001868880"
 dependencies = [
  "protobuf",
  "protobuf-codegen",

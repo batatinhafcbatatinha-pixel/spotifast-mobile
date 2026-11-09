@@ -493,7 +493,7 @@ private fun CollectionScreen(vm: AppViewModel, collection: Collection) {
                 }
             }
             if (all != null) {
-                item { SongControls(vm, all, songs.orEmpty().size) }
+                item { SongControls(vm, all, songs.orEmpty().size, vm.songsLoading[collection.uri]) }
             }
             if (songs == null) {
                 item {
@@ -661,7 +661,7 @@ private fun <T> SortRow(current: String, options: List<T>, label: (T) -> String,
 }
 
 @Composable
-private fun SongControls(vm: AppViewModel, all: List<Song>, shownCount: Int) {
+private fun SongControls(vm: AppViewModel, all: List<Song>, shownCount: Int, loading: Pair<Int, Int>?) {
     val filter = vm.songFilter
     var lengthMenu by remember { mutableStateOf(false) }
     Column {
@@ -669,7 +669,11 @@ private fun SongControls(vm: AppViewModel, all: List<Song>, shownCount: Int) {
             SortRow(vm.songSort.label, songSorts(all), { it.label }, vm::sortSongs)
             Spacer(Modifier.weight(1f))
             Text(
-                if (filter.active) "$shownCount of ${all.size}" else "${all.size} songs",
+                when {
+                    loading != null -> "Loading ${loading.first} of ${loading.second}…"
+                    filter.active -> "$shownCount of ${all.size}"
+                    else -> "${all.size} songs"
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(end = 16.dp),
@@ -704,6 +708,13 @@ private fun SongControls(vm: AppViewModel, all: List<Song>, shownCount: Int) {
             if (filter.active) {
                 TextButton(onClick = { vm.songFilter = SongFilter() }) { Text("Clear filters") }
             }
+        }
+        if (loading != null) {
+            LinearProgressIndicator(
+                progress = { loading.first.toFloat() / loading.second.coerceAtLeast(1) },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                trackColor = Track,
+            )
         }
         if (shownCount == 0 && all.isNotEmpty()) EmptyNote("No songs match these filters.")
     }

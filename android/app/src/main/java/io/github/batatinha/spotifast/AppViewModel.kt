@@ -240,16 +240,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         libraryLoading = false
     }
 
+    /** Songs still arriving for a collection, by URI: how many of how many. */
+    val songsLoading = mutableStateMapOf<String, Pair<Int, Int>>()
+
     fun open(collection: Collection) {
         songFilter = SongFilter()
         stack.add(collection)
         if (collection.uri in songs) return
         viewModelScope.launch {
             try {
-                songs[collection.uri] = Spotify.songs(collection)
+                Spotify.streamSongs(collection) { read, total ->
+                    songs[collection.uri] = read
+                    if (read.size < total) {
+                        songsLoading[collection.uri] = read.size to total
+                    } else {
+                        songsLoading.remove(collection.uri)
+                    }
+                }
             } catch (e: Exception) {
-                songs[collection.uri] = emptyList()
+                if (collection.uri !in songs) songs[collection.uri] = emptyList()
                 failed(e)
+            } finally {
+                songsLoading.remove(collection.uri)
             }
         }
     }

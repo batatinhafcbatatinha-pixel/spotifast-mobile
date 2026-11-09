@@ -12,7 +12,7 @@ object Spotify {
     }
 
     /** Follows `next` links until [max] items have been read. */
-    private suspend fun pages(first: String, max: Int = 2000): List<JSONObject> {
+    private suspend fun pages(first: String, max: Int = 10_000): List<JSONObject> {
         val items = mutableListOf<JSONObject>()
         var next: String? = first
         while (next != null && items.size < max) {
@@ -41,13 +41,38 @@ object Spotify {
     suspend fun playlistSongs(id: String): List<Song> =
         saved(pages("/playlists/$id/items?limit=50&additional_types=track,episode"))
 
-    /** Entries that carry the song with the time it was added. */
-    private fun saved(entries: List<JSONObject>): List<Song> = entries.mapNotNull { entry ->
+    /** Entries that carry the song with the time it was added, numbered from [start]. */
+    private fun saved(entries: List<JSONObject>, start: Int = 0): List<Song> = entries.mapNotNull { entry ->
         // The current API names the song `item`; older answers say `track`.
         (entry.optJSONObject("item") ?: entry.optJSONObject("track"))
             ?.let { parseSong(it) }
             ?.copy(addedAt = entry.optStringOrNull("added_at"))
-    }.mapIndexed { i, song -> song.copy(order = i) }
+    }.mapIndexed { i, song -> song.copy(order = start + i) }
+
+    /**
+     * The songs of [collection], page by page: [onPage] gets every song read
+     * so far and the total Spotify reports, so a long playlist shows its
+     * first songs at once and fills in while it is browsed.
+     */
+    suspend fun streamSongs(collection: Collection, onPage: (songs: List<Song>, total: Int) -> Unit) {
+        val first = when (collection.kind) {
+            Collection.Kind.Playlist -> "/playlists/${collection.id}/items?limit=100&additional_types=track,episode"
+            Collection.Kind.Liked -> "/me/tracks?limit=50"
+            else -> {
+                val all = songs(collection)
+                onPage(all, all.size)
+                return
+            }
+        }
+        val read = mutableListOf<Song>()
+        var next: String? = first
+        while (next != null) {
+            val page = get(next)
+            read += saved(page.optJSONArray("items").objects(), start = read.size)
+            onPage(read.toList(), page.optInt("total", read.size))
+            next = page.optStringOrNull("next")
+        }
+    }
 
     /**
      * When each playlist, album or artist was last played from, by URI, out
