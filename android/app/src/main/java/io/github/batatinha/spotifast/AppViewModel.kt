@@ -239,6 +239,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             player = PlayerState.parse(io { Native.playerState() })
         } catch (e: Exception) {
             failed(e)
+            // A refused playback grant is dropped; show the setup card again.
+            refreshStatus()
         }
     }
 

@@ -30,6 +30,7 @@ urlencoding = "2"
 jni = "0.21"
 librespot-core = { version = "0.8", default-features = false, features = ["rustls-tls-webpki-roots"] }
 librespot-connect = { version = "0.8", default-features = false, features = ["rustls-tls-webpki-roots"] }
+librespot-protocol = { version = "0.8", default-features = false }
 librespot-metadata = { version = "0.8", default-features = false, features = ["rustls-tls-webpki-roots"] }
 # rodio over cpal, which plays through AAudio on Android.
 librespot-playback = { version = "0.8", default-features = false, features = ["rustls-tls-webpki-roots", "rodio-backend"] }

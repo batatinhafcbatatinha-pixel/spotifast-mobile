@@ -299,6 +299,19 @@ impl Core {
     /// Connects this phone to Spotify Connect, signing librespot in with
     /// the playback grant or the credentials it kept from last time.
     pub fn connect(&self, device_name: &str) -> Result<()> {
+        let token = self.playback_token.lock().unwrap().clone();
+        let grant = match token {
+            Some(token) => {
+                let me: serde_json::Value = serde_json::from_str(&self.api("GET", "/me", None)?)?;
+                let username = me["id"]
+                    .as_str()
+                    .filter(|id| !id.is_empty())
+                    .ok_or_else(|| anyhow!("Spotify did not say which account is signed in."))?
+                    .to_string();
+                Some((username, token))
+            }
+            None => None,
+        };
         self.rt.block_on(async {
             let mut engine = self.engine.lock().await;
             if engine.as_ref().is_some_and(|engine| engine.connected()) {
@@ -307,10 +320,12 @@ impl Core {
             if let Some(old) = engine.take() {
                 old.shutdown();
             }
-            let token = self.playback_token.lock().unwrap().clone();
             let connected =
-                Engine::connect(&self.data_dir, &self.cache_dir, device_name, token).await?;
+                Engine::connect(&self.data_dir, &self.cache_dir, device_name, grant).await;
+            // Used or refused, the one-time token is spent: a refusal brings
+            // back "Set up playback here" instead of failing every song.
             *self.playback_token.lock().unwrap() = None;
+            let connected = connected?;
             *engine = Some(Arc::new(connected));
             Ok(())
         })

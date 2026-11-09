@@ -18,6 +18,7 @@ use librespot_core::{
     config::{DeviceType, SessionConfig},
     session::Session,
 };
+use librespot_protocol::authentication::AuthenticationType;
 use librespot_metadata::audio::{AudioItem, UniqueFields};
 use librespot_playback::{
     audio_backend,
@@ -141,7 +142,8 @@ impl Engine {
         data_dir: &Path,
         cache_dir: &Path,
         device_name: &str,
-        access_token: Option<String>,
+        // The playback grant's token, with the account it belongs to.
+        access_token: Option<(String, String)>,
     ) -> Result<Self> {
         let cache = Cache::new(
             Some(librespot_dir(data_dir)),
@@ -151,7 +153,13 @@ impl Engine {
         )
         .context("unable to open the playback cache")?;
         let credentials = match access_token {
-            Some(token) => Credentials::with_access_token(token),
+            // Spotify refuses a token login without the account name, as
+            // the desktop's `playback_credentials` does it.
+            Some((username, token)) => Credentials {
+                username: Some(username),
+                auth_type: AuthenticationType::AUTHENTICATION_SPOTIFY_TOKEN,
+                auth_data: token.into_bytes(),
+            },
             None => cache
                 .credentials()
                 .ok_or_else(|| anyhow!("Set up playback on this phone first."))?,
