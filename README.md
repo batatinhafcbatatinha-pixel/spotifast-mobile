@@ -22,7 +22,6 @@ A native client for Android, and for iPhone in preview, with a Rust core.</p>
 </p>
 
 <p align="center">
-  <img src="docs/android/library-light.jpg" width="200" alt="Library in the light theme">
   <img src="docs/android/now-playing-cyberpunk.jpg" width="200" alt="Now Playing in the Cyberpunk theme">
   <img src="docs/android/songs-filters.jpg" width="200" alt="Liked Songs sorted and filtered, in the Nord theme">
 </p>
@@ -53,7 +52,6 @@ phone.
 ## Make it yours
 
 <p align="center">
-  <img src="docs/android/library-dracula.jpg" width="200" alt="Library in the Dracula theme">
   <img src="docs/android/now-playing-80s.jpg" width="200" alt="Now Playing in the 80s synthwave theme">
   <img src="docs/android/search-gruvbox.jpg" width="200" alt="Search in the Gruvbox theme">
 </p>
