@@ -42,6 +42,75 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var libraryLoading by mutableStateOf(false)
         private set
 
+    // ----- Sorting and filtering, remembered between launches -----
+
+    private val prefs = app.getSharedPreferences("view", android.content.Context.MODE_PRIVATE)
+
+    var librarySort by mutableStateOf(
+        enumPref("library_sort", LibrarySort.Recent),
+    )
+        private set
+    var libraryShow by mutableStateOf(LibraryShow.All)
+    var libraryText by mutableStateOf("")
+    var songSort by mutableStateOf(enumPref("song_sort", SongSort.Default))
+        private set
+    var songFilter by mutableStateOf(SongFilter())
+
+    /** Last play time by playlist or album URI, from the recent history. */
+    private var played by mutableStateOf<Map<String, String>>(emptyMap())
+
+    private inline fun <reified T : Enum<T>> enumPref(key: String, default: T): T =
+        prefs.getString(key, null)?.let { name -> enumValues<T>().firstOrNull { it.name == name } } ?: default
+
+    var appearance by mutableStateOf(enumPref("appearance", io.github.batatinha.spotifast.ui.Appearance.System))
+        private set
+    var accent by mutableStateOf(enumPref("accent", io.github.batatinha.spotifast.ui.Accent.Green))
+        private set
+
+    /** Colours from the cover playing, for the dynamic theme. */
+    var cover by mutableStateOf<io.github.batatinha.spotifast.ui.CoverColors?>(null)
+        private set
+    private var coverUrl: String? = null
+
+    private fun followCover() {
+        if (appearance != io.github.batatinha.spotifast.ui.Appearance.Dynamic) return
+        val url = player.track?.artUrl ?: return
+        if (url == coverUrl) return
+        coverUrl = url
+        viewModelScope.launch {
+            coverColors(getApplication(), url)?.let { if (coverUrl == url) cover = it }
+        }
+    }
+
+    fun setTheme(appearance: io.github.batatinha.spotifast.ui.Appearance, accent: io.github.batatinha.spotifast.ui.Accent) {
+        coverUrl = null
+        this.appearance = appearance
+        this.accent = accent
+        prefs.edit().putString("appearance", appearance.name).putString("accent", accent.name).apply()
+        followCover()
+    }
+
+    fun sortLibrary(sort: LibrarySort) {
+        librarySort = sort
+        prefs.edit().putString("library_sort", sort.name).apply()
+        if (sort == LibrarySort.Played) loadPlayed()
+    }
+
+    fun sortSongs(sort: SongSort) {
+        songSort = sort
+        prefs.edit().putString("song_sort", sort.name).apply()
+    }
+
+    val library: List<Collection>
+        get() = arrangeLibrary(playlists + albums, librarySort, libraryShow, libraryText, userId, played)
+
+    fun shownSongs(collection: Collection): List<Song>? =
+        songs[collection.uri]?.let { arrangeSongs(it, songSort, songFilter) }
+
+    private fun loadPlayed() = viewModelScope.launch {
+        played = runCatching { Spotify.recentlyPlayedContexts() }.getOrDefault(played)
+    }
+
     var query by mutableStateOf("")
     var results by mutableStateOf(SearchResults())
         private set
@@ -81,7 +150,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             while (true) {
                 if (visible) {
                     val json = runCatching { io { Native.playerState() } }.getOrNull()
-                    if (json != null) player = PlayerState.parse(json)
+                    if (json != null) {
+                        player = PlayerState.parse(json)
+                        followCover()
+                    }
                 }
                 delay(500)
             }
@@ -161,6 +233,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             userId = Spotify.me().optString("id")
             playlists = Spotify.myPlaylists()
             albums = Spotify.savedAlbums()
+            loadPlayed()
         } catch (e: Exception) {
             failed(e)
         }
@@ -168,6 +241,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun open(collection: Collection) {
+        songFilter = SongFilter()
         stack.add(collection)
         if (collection.uri in songs) return
         viewModelScope.launch {
@@ -242,6 +316,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             // A refused playback grant is dropped; show the setup card again.
             refreshStatus()
         }
+    }
+
+    /**
+     * Plays [shown] from [index]. In Spotify's own order the collection
+     * itself is played, so Spotify keeps its context; sorted or filtered,
+     * the songs go as a list in the order on screen.
+     */
+    fun playShown(collection: Collection, shown: List<Song>, index: Int?, shuffle: Boolean = false) {
+        if (songSort == SongSort.Default && !songFilter.active) {
+            play(collection, index?.let { shown.getOrNull(it) }, shuffle)
+            return
+        }
+        if (!status.playbackSignedIn) {
+            error = "Set up playback on this phone first."
+            return
+        }
+        val playable = shown.filter { it.playable }
+        if (playable.isEmpty()) return
+        val start = index?.let { playable.indexOf(shown[it]) }?.coerceAtLeast(0) ?: 0
+        val uris = JSONArray()
+        playable.forEach { uris.put(it.uri) }
+        val command = JSONObject().put("cmd", "load").put("uris", uris).put("shuffle", shuffle)
+        if (!shuffle) command.put("index", start)
+        send(command)
     }
 
     /** Plays [song] within [collection], or on its own when there is none. */

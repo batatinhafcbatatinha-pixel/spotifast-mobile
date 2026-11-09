@@ -2,6 +2,14 @@ package io.github.batatinha.spotifast.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material3.FilterChip
+import io.github.batatinha.spotifast.LengthFilter
+import io.github.batatinha.spotifast.LibrarySort
+import io.github.batatinha.spotifast.LibraryShow
+import io.github.batatinha.spotifast.SongFilter
+import io.github.batatinha.spotifast.songSorts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +38,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LibraryMusic
@@ -40,7 +49,9 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -120,7 +131,7 @@ fun SpotifastRoot(vm: AppViewModel) {
 @Composable
 private fun BusyOverlay(message: String, onCancel: () -> Unit) {
     Box(
-        Modifier.fillMaxSize().background(Color(0xCC0F1114)).clickable(enabled = true) {},
+        Modifier.fillMaxSize().background(Scrim).clickable(enabled = true) {},
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -157,7 +168,7 @@ private fun SetupScreen(vm: AppViewModel) {
         Box(
             Modifier.size(64.dp).clip(CircleShape).background(Green),
             contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Default.PlayArrow, null, tint = Background, modifier = Modifier.size(36.dp)) }
+        ) { Icon(Icons.Default.PlayArrow, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(36.dp)) }
         Text("Spotifast", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
         Text(
             "Spotify, light and fast. Playback needs Spotify Premium.",
@@ -242,10 +253,17 @@ private fun MainScreen(vm: AppViewModel, snackbar: SnackbarHostState) {
 @Composable
 private fun LibraryScreen(vm: AppViewModel) {
     var menu by remember { mutableStateOf(false) }
+    var themes by remember { mutableStateOf(false) }
+    var filtering by rememberSaveable { mutableStateOf(vm.libraryText.isNotEmpty()) }
+    if (themes) ThemeDialog(vm) { themes = false }
     Column {
         TopAppBar(
             title = { Text("Your Library", fontWeight = FontWeight.Bold) },
             actions = {
+                IconButton(onClick = {
+                    filtering = !filtering
+                    if (!filtering) vm.libraryText = ""
+                }) { Icon(Icons.Default.Search, "Filter the library") }
                 IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, "More") }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(text = { Text("Refresh") }, onClick = { menu = false; vm.loadLibrary() })
@@ -253,20 +271,40 @@ private fun LibraryScreen(vm: AppViewModel) {
                         text = { Text("Play what's on my other device here") },
                         onClick = { menu = false; vm.transfer() },
                     )
+                    DropdownMenuItem(text = { Text("Theme") }, onClick = { menu = false; themes = true })
                     DropdownMenuItem(text = { Text("Sign out") }, onClick = { menu = false; vm.signOut() })
                 }
             },
         )
+        if (filtering) {
+            FilterField(vm.libraryText, "Filter playlists and albums") { vm.libraryText = it }
+        }
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            LibraryShow.entries.forEach { show ->
+                FilterChip(
+                    selected = vm.libraryShow == show,
+                    onClick = { vm.libraryShow = if (vm.libraryShow == show) LibraryShow.All else show },
+                    label = { Text(show.label) },
+                )
+            }
+        }
+        SortRow(vm.librarySort.label, LibrarySort.entries, { it.label }, vm::sortLibrary)
         if (vm.libraryLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+        val shown = vm.library
+        val showLiked = vm.libraryShow != LibraryShow.Albums && vm.libraryShow != LibraryShow.Mine &&
+            (vm.libraryText.isBlank() || "liked songs".contains(vm.libraryText.trim().lowercase()))
         LazyColumn(Modifier.fillMaxSize()) {
             if (!vm.status.playbackSignedIn) {
                 item { PlaybackSetupCard(vm) }
             }
-            item { CollectionRow(vm.liked) { vm.open(vm.liked) } }
-            itemsIndexed(vm.playlists, key = { i, _ -> "p$i" }) { _, it -> CollectionRow(it) { vm.open(it) } }
-            if (vm.albums.isNotEmpty()) {
-                item { SectionTitle("Albums") }
-                itemsIndexed(vm.albums, key = { i, _ -> "a$i" }) { _, it -> CollectionRow(it) { vm.open(it) } }
+            if (showLiked) item { CollectionRow(vm.liked) { vm.open(vm.liked) } }
+            itemsIndexed(shown, key = { i, _ -> "c$i" }) { _, it -> CollectionRow(it) { vm.open(it) } }
+            if (shown.isEmpty() && !vm.libraryLoading) {
+                item { EmptyNote("Nothing matches.") }
             }
         }
     }
@@ -401,15 +439,28 @@ private fun SongRow(song: Song, current: Boolean, onClick: () -> Unit, onQueue: 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CollectionScreen(vm: AppViewModel, collection: Collection) {
-    val songs = vm.songs[collection.uri]
+    val all = vm.songs[collection.uri]
+    val songs = vm.shownSongs(collection)
     val playing = vm.player.track?.uri
+    var filtering by rememberSaveable(collection.uri) { mutableStateOf(false) }
     Column {
         TopAppBar(
             title = { Text(collection.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
             navigationIcon = {
                 IconButton(onClick = { vm.back() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
             },
+            actions = {
+                IconButton(onClick = {
+                    filtering = !filtering
+                    if (!filtering) vm.songFilter = vm.songFilter.copy(text = "")
+                }) { Icon(Icons.Default.Search, "Filter the songs") }
+            },
         )
+        if (filtering) {
+            FilterField(vm.songFilter.text, "Filter by title, artist or album") {
+                vm.songFilter = vm.songFilter.copy(text = it)
+            }
+        }
         LazyColumn(Modifier.fillMaxSize()) {
             item {
                 Column(
@@ -427,12 +478,12 @@ private fun CollectionScreen(vm: AppViewModel, collection: Collection) {
                     Text(collection.subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(onClick = { vm.play(collection, null) }, enabled = !songs.isNullOrEmpty()) {
+                        Button(onClick = { vm.playShown(collection, songs.orEmpty(), null) }, enabled = !songs.isNullOrEmpty()) {
                             Icon(Icons.Default.PlayArrow, null)
                             Text("Play")
                         }
                         OutlinedButton(
-                            onClick = { vm.play(collection, null, shuffle = true) },
+                            onClick = { vm.playShown(collection, songs.orEmpty(), null, shuffle = true) },
                             enabled = !songs.isNullOrEmpty(),
                         ) {
                             Icon(Icons.Default.Shuffle, null)
@@ -441,6 +492,9 @@ private fun CollectionScreen(vm: AppViewModel, collection: Collection) {
                     }
                 }
             }
+            if (all != null) {
+                item { SongControls(vm, all, songs.orEmpty().size) }
+            }
             if (songs == null) {
                 item {
                     Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
@@ -448,11 +502,11 @@ private fun CollectionScreen(vm: AppViewModel, collection: Collection) {
                     }
                 }
             } else {
-                itemsIndexed(songs, key = { i, _ -> "t$i" }) { _, song ->
+                itemsIndexed(songs, key = { i, _ -> "t$i" }) { index, song ->
                     SongRow(
                         song,
                         current = song.uri == playing,
-                        onClick = { vm.play(collection, song) },
+                        onClick = { vm.playShown(collection, songs, index) },
                         onQueue = { vm.queue(song) },
                     )
                 }
@@ -516,7 +570,7 @@ private fun MiniPlayer(vm: AppViewModel) {
             .fillMaxWidth()
             .padding(horizontal = 8.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFF2A2F36))
+            .background(Raised)
             .clickable { vm.showNowPlaying = true },
     ) {
         Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -545,7 +599,7 @@ private fun MiniPlayer(vm: AppViewModel) {
         LinearProgressIndicator(
             progress = { progress.coerceIn(0f, 1f) },
             modifier = Modifier.fillMaxWidth().height(2.dp),
-            trackColor = Color(0xFF4A5059),
+            trackColor = Track,
         )
     }
 }
@@ -560,4 +614,157 @@ fun rememberPosition(vm: AppViewModel): Long {
         }
     }
     return now
+}
+
+// ----- Sorting and filtering -----
+
+@Composable
+private fun FilterField(value: String, hint: String, onChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        placeholder = { Text(hint) },
+        leadingIcon = { Icon(Icons.Default.Search, null) },
+        trailingIcon = {
+            if (value.isNotEmpty()) {
+                IconButton(onClick = { onChange("") }) { Icon(Icons.Default.Close, "Clear") }
+            }
+        },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+    )
+}
+
+/** The current sort, with a menu of [options]. */
+@Composable
+private fun <T> SortRow(current: String, options: List<T>, label: (T) -> String, onPick: (T) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box(Modifier.padding(horizontal = 8.dp)) {
+        TextButton(onClick = { open = true }) {
+            Icon(Icons.AutoMirrored.Filled.Sort, null, Modifier.size(18.dp))
+            Text("  " + current)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            label(option),
+                            color = if (label(option) == current) Green else MaterialTheme.colorScheme.onSurface,
+                        )
+                    },
+                    onClick = { open = false; onPick(option) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SongControls(vm: AppViewModel, all: List<Song>, shownCount: Int) {
+    val filter = vm.songFilter
+    var lengthMenu by remember { mutableStateOf(false) }
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SortRow(vm.songSort.label, songSorts(all), { it.label }, vm::sortSongs)
+            Spacer(Modifier.weight(1f))
+            Text(
+                if (filter.active) "$shownCount of ${all.size}" else "${all.size} songs",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(end = 16.dp),
+            )
+        }
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box {
+                FilterChip(
+                    selected = filter.length != LengthFilter.Any,
+                    onClick = { lengthMenu = true },
+                    label = { Text(filter.length.label) },
+                )
+                DropdownMenu(expanded = lengthMenu, onDismissRequest = { lengthMenu = false }) {
+                    LengthFilter.entries.forEach { length ->
+                        DropdownMenuItem(
+                            text = { Text(length.label) },
+                            onClick = { lengthMenu = false; vm.songFilter = filter.copy(length = length) },
+                        )
+                    }
+                }
+            }
+            if (all.any { it.explicit }) {
+                FilterChip(
+                    selected = filter.hideExplicit,
+                    onClick = { vm.songFilter = filter.copy(hideExplicit = !filter.hideExplicit) },
+                    label = { Text("Hide explicit") },
+                )
+            }
+            if (filter.active) {
+                TextButton(onClick = { vm.songFilter = SongFilter() }) { Text("Clear filters") }
+            }
+        }
+        if (shownCount == 0 && all.isNotEmpty()) EmptyNote("No songs match these filters.")
+    }
+}
+
+@Composable
+private fun EmptyNote(text: String) {
+    Text(
+        text,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.fillMaxWidth().padding(24.dp),
+    )
+}
+
+// ----- Theme -----
+
+@Composable
+private fun ThemeDialog(vm: AppViewModel, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Theme") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Appearance.entries.forEach { appearance ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { vm.setTheme(appearance, vm.accent) }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = vm.appearance == appearance, onClick = { vm.setTheme(appearance, vm.accent) })
+                        Text(appearance.label)
+                    }
+                }
+                if (vm.appearance.takesAccent) {
+                Spacer(Modifier.height(12.dp))
+                Text("Accent colour", fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val dark = LocalPalette.current.dark
+                    Accent.entries.forEach { accent ->
+                        val colour = if (dark) accent.dark else accent.light
+                        Box(
+                            Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(colour)
+                                .clickable { vm.setTheme(vm.appearance, accent) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (vm.accent == accent) {
+                                Icon(Icons.Default.Check, accent.label, tint = MaterialTheme.colorScheme.onPrimary)
+                            }
+                        }
+                    }
+                }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+    )
 }

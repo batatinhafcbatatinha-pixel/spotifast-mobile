@@ -12,8 +12,8 @@ android {
         applicationId = "io.github.batatinha.spotifast"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.1.5"
+        versionCode = 7
+        versionName = "0.2.0"
     }
 
     // One APK per architecture, so a phone downloads only its own library.
@@ -85,6 +85,7 @@ dependencies {
     implementation("androidx.media3:media3-common:1.7.1")
     implementation("androidx.browser:browser:1.8.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("androidx.palette:palette-ktx:1.0.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.10.2")
 }

@@ -30,6 +30,13 @@ data class Collection(
     val subtitle: String,
     val imageUrl: String?,
     val kind: Kind,
+    /** Position in Spotify's own order (the library's, or the results'). */
+    val order: Int = 0,
+    val ownerId: String? = null,
+    val total: Int = 0,
+    /** ISO time an album was saved, when Spotify says. */
+    val addedAt: String? = null,
+    val releaseDate: String? = null,
 ) {
     enum class Kind { Playlist, Album, Liked, Artist }
 }
@@ -42,6 +49,14 @@ data class Song(
     val imageUrl: String?,
     val durationMs: Long,
     val playable: Boolean,
+    /** Position in the playlist or album as Spotify orders it. */
+    val order: Int = 0,
+    /** ISO time the song was added to the playlist or saved. */
+    val addedAt: String? = null,
+    val releaseDate: String? = null,
+    val explicit: Boolean = false,
+    /** 0 to 100, or -1 when Spotify leaves it out. */
+    val popularity: Int = -1,
 )
 
 data class SearchResults(
@@ -144,6 +159,9 @@ fun parseSong(o: JSONObject, albumImage: String? = null): Song? {
             ?: albumImage,
         durationMs = o.optLong("duration_ms"),
         playable = o.optBoolean("is_playable", true) && !o.optBoolean("is_local"),
+        releaseDate = album?.optStringOrNull("release_date") ?: o.optStringOrNull("release_date"),
+        explicit = o.optBoolean("explicit"),
+        popularity = if (o.has("popularity") && !o.isNull("popularity")) o.optInt("popularity") else -1,
     )
 }
 
@@ -154,6 +172,9 @@ fun parsePlaylist(o: JSONObject): Collection = Collection(
     subtitle = o.optJSONObject("owner")?.optString("display_name") ?: "",
     imageUrl = o.optJSONArray("images").imageUrl(),
     kind = Collection.Kind.Playlist,
+    ownerId = o.optJSONObject("owner")?.optStringOrNull("id"),
+    // The current API counts songs under `items`; older answers say `tracks`.
+    total = (o.optJSONObject("items") ?: o.optJSONObject("tracks"))?.optInt("total") ?: 0,
 )
 
 fun parseAlbum(o: JSONObject): Collection = Collection(
@@ -163,6 +184,8 @@ fun parseAlbum(o: JSONObject): Collection = Collection(
     subtitle = artistNames(o),
     imageUrl = o.optJSONArray("images").imageUrl(),
     kind = Collection.Kind.Album,
+    total = o.optInt("total_tracks"),
+    releaseDate = o.optStringOrNull("release_date"),
 )
 
 fun parseArtist(o: JSONObject): Collection = Collection(

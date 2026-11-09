@@ -117,7 +117,11 @@ fun NowPlayingScreen(vm: AppViewModel) {
                 dragging = null
             },
             enabled = track != null,
-            colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.onSurface),
+            colors = SliderDefaults.colors(
+                thumbColor = MaterialTheme.colorScheme.onSurface,
+                activeTrackColor = Green,
+                inactiveTrackColor = Track,
+            ),
         )
         Row(Modifier.fillMaxWidth()) {
             val shown = dragging?.let { (it * duration).toLong() } ?: position
@@ -139,7 +143,7 @@ fun NowPlayingScreen(vm: AppViewModel) {
             }
             FilledIconButton(onClick = vm::toggle, modifier = Modifier.size(72.dp)) {
                 if (state.loading) {
-                    CircularProgressIndicator(Modifier.size(32.dp), color = Background, strokeWidth = 3.dp)
+                    CircularProgressIndicator(Modifier.size(32.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 3.dp)
                 } else {
                     Icon(
                         if (state.playing) Icons.Default.Pause else Icons.Default.PlayArrow,

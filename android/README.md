@@ -33,6 +33,17 @@ android/
   other Spotify apps can control
 - Take over what is playing on another device
 - Mini player, a Now Playing screen, and the system media notification
+- Sort and filter the library: recently added, recently played, name,
+  creator, number of songs; show only playlists, albums or your own
+- Sort and filter songs: recently added, title, artist, album, length,
+  release date; filter by text, length, and hide explicit songs. Playing a
+  sorted or filtered list plays it in the order shown
+- Themes: follows the phone's dark or light mode by default; dark, light
+  and AMOLED black with an accent colour; a dynamic theme coloured by the
+  cover playing; and presets after popular Spicetify themes (Catppuccin
+  Mocha and Latte, Dracula, Nord, Gruvbox, Fluent, Comfy, Throwback) plus
+  80s synthwave, 90s vaporwave, Terminal, Cyberpunk, Coffee and Rose
+- Small and constant on storage: no audio or image cache on disk
 
 Not yet: offline downloads (librespot cannot), lyrics, podcasts browsing,
 playlist editing, Android Auto browsing.
