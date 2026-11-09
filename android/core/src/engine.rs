@@ -253,6 +253,56 @@ impl Engine {
         state
     }
 
+    /**
+     * An artist's popular songs read through the playback session, shaped
+     * like the Web API's `top-tracks` answer. Spotify refuses that endpoint
+     * to apps in development mode; the session still has the ranking.
+     */
+    pub async fn artist_top_tracks(&self, id: &str) -> Result<String> {
+        use librespot_core::spotify_id::SpotifyId;
+        use librespot_metadata::{Artist, Metadata, Track as MetadataTrack};
+        let uri = SpotifyUri::Artist { id: SpotifyId::from_base62(id)? };
+        let artist = Artist::get(&self.session, &uri).await?;
+        let country = self.session.country();
+        let ranking = artist
+            .top_tracks
+            .iter()
+            .find(|top| top.country == country)
+            .or_else(|| artist.top_tracks.iter().find(|top| top.country == "ZZ"))
+            .ok_or_else(|| anyhow!("Spotify has no popular songs for this artist here."))?;
+        let mut tracks = Vec::new();
+        for uri in ranking.tracks.iter().take(10) {
+            let Ok(track) = MetadataTrack::get(&self.session, uri).await else {
+                continue;
+            };
+            let images: Vec<_> = track
+                .album
+                .covers
+                .iter()
+                .map(|cover| {
+                    serde_json::json!({
+                        "url": format!("https://i.scdn.co/image/{}", cover.id.to_base16()),
+                        "width": cover.width,
+                    })
+                })
+                .collect();
+            let artists: Vec<_> = track
+                .artists
+                .iter()
+                .map(|artist| serde_json::json!({ "name": artist.name }))
+                .collect();
+            tracks.push(serde_json::json!({
+                "uri": uri.to_uri(),
+                "name": track.name,
+                "duration_ms": track.duration,
+                "explicit": track.is_explicit,
+                "artists": artists,
+                "album": { "name": track.album.name, "images": images },
+            }));
+        }
+        Ok(serde_json::json!({ "tracks": tracks }).to_string())
+    }
+
     pub fn shutdown(&self) {
         let _ = self.spirc.shutdown();
     }

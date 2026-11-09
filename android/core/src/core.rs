@@ -241,6 +241,30 @@ impl Core {
     /// URL (the `next` link of a page). Returns the response body, `{}` when
     /// Spotify sends none.
     pub fn api(&self, method: &str, path: &str, body: Option<String>) -> Result<String> {
+        let answer = self.web_api(method, path, body);
+        // Spotify refuses an artist's popular songs to apps in development
+        // mode; the playback session still has them.
+        if answer.is_err()
+            && method == "GET"
+            && let Some(id) = path
+                .strip_prefix("/artists/")
+                .and_then(|rest| rest.strip_suffix("/top-tracks"))
+            && let Ok(tracks) = self.session_top_tracks(id)
+        {
+            return Ok(tracks);
+        }
+        answer
+    }
+
+    fn session_top_tracks(&self, id: &str) -> Result<String> {
+        self.rt.block_on(async {
+            let engine = self.engine.lock().await.clone();
+            let engine = engine.ok_or_else(|| anyhow!("Playback is not connected."))?;
+            engine.artist_top_tracks(id).await
+        })
+    }
+
+    fn web_api(&self, method: &str, path: &str, body: Option<String>) -> Result<String> {
         let url = if path.starts_with("https://") {
             path.to_string()
         } else {

@@ -336,7 +336,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * the songs go as a list in the order on screen.
      */
     fun playShown(collection: Collection, shown: List<Song>, index: Int?, shuffle: Boolean = false) {
-        if (songSort == SongSort.Default && !songFilter.active) {
+        // An artist's context ignores the song chosen, so its top songs go as a list.
+        if (songSort == SongSort.Default && !songFilter.active && collection.kind != Collection.Kind.Artist) {
             play(collection, index?.let { shown.getOrNull(it) }, shuffle)
             return
         }
