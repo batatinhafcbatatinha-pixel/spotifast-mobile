@@ -4,8 +4,8 @@
 
 <h1 align="center">Spotifast Mobile</h1>
 
-<p align="center"><strong>Spotify on Android: small, fast, and yours to theme.</strong><br>
-A native Android client with a Rust core and a Jetpack Compose interface.</p>
+<p align="center"><strong>Spotify on your phone: small, fast, and yours to theme.</strong><br>
+A native client for Android, and for iPhone in preview, with a Rust core.</p>
 
 <p align="center">
   <a href="https://github.com/batatinhafcbatatinha-pixel/spotifast-mobile/releases"><strong>Download the APK</strong></a> ·
@@ -15,6 +15,7 @@ A native Android client with a Rust core and a Jetpack Compose interface.</p>
 
 <p align="center">
   <a href="https://github.com/batatinhafcbatatinha-pixel/spotifast-mobile/actions/workflows/android.yml"><img src="https://github.com/batatinhafcbatatinha-pixel/spotifast-mobile/actions/workflows/android.yml/badge.svg" alt="Android build"></a>
+  <a href="https://github.com/batatinhafcbatatinha-pixel/spotifast-mobile/actions/workflows/ios.yml"><img src="https://github.com/batatinhafcbatatinha-pixel/spotifast-mobile/actions/workflows/ios.yml/badge.svg" alt="iOS build"></a>
   <a href="https://github.com/batatinhafcbatatinha-pixel/spotifast-mobile/actions/workflows/codeql.yml"><img src="https://github.com/batatinhafcbatatinha-pixel/spotifast-mobile/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
   <a href="SECURITY.md#checking-a-download"><img src="https://img.shields.io/badge/build_provenance-attested-2ea44f?logo=github" alt="Build provenance attested"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
@@ -119,12 +120,33 @@ Everything runs on the phone; no computer is involved after you install.
 
 [SECURITY.md](SECURITY.md) has the details and how to report a problem.
 
+## iPhone (preview)
+
+The same app for iPhone, in SwiftUI over the same Rust core: library,
+search, sorting and filters, themes, background playback and lock screen
+controls. **It is built automatically but has not been tested on an iPhone
+yet**, so expect rough edges and please report what you find.
+
+iOS only installs apps from outside the App Store through a sideloading
+tool:
+
+1. Install [SideStore](https://sidestore.io) or
+   [AltStore](https://altstore.io) on your iPhone.
+2. Download `spotifast-mobile-ios-<version>.ipa` from
+   [Releases](https://github.com/batatinhafcbatatinha-pixel/spotifast-mobile/releases)
+   and open it with SideStore or AltStore, which signs it with your Apple ID.
+3. Set it up as on Android (see [Get started](#get-started)).
+
+With a free Apple ID the signature lasts 7 days; SideStore renews it from
+the phone. A paid Apple developer account makes it last a year.
+
 ## How it is built
 
 ```
 android/
-├── core/   Rust: sign-in, Web API, librespot playback (JNI library)
+├── core/   Rust: sign-in, Web API, librespot playback (JNI and a C ABI)
 └── app/    Kotlin: Compose interface, Media3 session, playback service
+ios/        Swift: SwiftUI interface over the same core, built by CI
 ```
 
 See [android/README.md](android/README.md) for the architecture and how to

@@ -1,0 +1,126 @@
+# Builds the iOS app on macOS: the Rust core as a static library, then an
+# unsigned .ipa to sideload with SideStore or AltStore, which sign it with
+# the installer's own Apple ID. Every build gets a SHA-256 checksum and a
+# signed build provenance attestation; a tag ios-v* publishes a release.
+name: iOS
+
+on:
+  push:
+    branches: [main]
+    tags: ["ios-v*"]
+    paths:
+      - "ios/**"
+      - "android/core/**"
+      - "src/auth.rs"
+      - ".github/workflows/ios.yml"
+  pull_request:
+    paths:
+      - "ios/**"
+      - "android/core/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # Intel macOS: the arm64 pool is often out of capacity, and it builds for iOS all the same.
+    runs-on: macos-15-intel
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Rust targets
+        working-directory: android/core
+        run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cargo-cache
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            android/core/target
+          key: ios-cargo-${{ hashFiles('android/core/Cargo.lock', 'android/core/src/**', 'src/auth.rs') }}
+          restore-keys: ios-cargo-
+
+      - name: Build the Rust core
+        run: sh ios/build-core.sh
+
+      # Saved before the Xcode steps, so a Swift failure keeps the Rust build.
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: steps.cargo-cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            android/core/target
+          key: ios-cargo-${{ hashFiles('android/core/Cargo.lock', 'android/core/src/**', 'src/auth.rs') }}
+
+      - name: Generate the Xcode project
+        working-directory: ios
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      # A compile check; the core is built for arm64 simulators only.
+      - name: Build for the simulator
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild -project Spotifast.xcodeproj -scheme Spotifast -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath DerivedData ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO build | tail -40
+
+      - name: Build for iPhone
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild -project Spotifast.xcodeproj -scheme Spotifast -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build | tail -40
+
+      - name: Package the .ipa
+        working-directory: ios
+        run: |
+          mkdir -p Payload dist
+          cp -R DerivedData/Build/Products/Release-iphoneos/Spotifast.app Payload/
+          version=$(sed -n 's/^ *MARKETING_VERSION: //p' project.yml)
+          zip -qry "dist/spotifast-mobile-ios-$version.ipa" Payload
+          cd dist && shasum -a 256 *.ipa > SHA256SUMS.txt && cat SHA256SUMS.txt
+
+      - name: Attest build provenance
+        id: attest
+        if: github.event_name != 'pull_request'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ios/dist/*.ipa
+
+      - name: Keep the attestation bundle
+        if: github.event_name != 'pull_request'
+        env:
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: cp "$BUNDLE" ios/dist/attestation.sigstore.json
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: spotifast-mobile-ipa
+          path: ios/dist/
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/ios-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" ios/dist/* --prerelease --verify-tag \
+            --title "Spotifast Mobile for iPhone ${TAG#ios-v}" \
+            --notes "Unsigned build: install it with SideStore or AltStore, which sign it with your Apple ID. Built by GitHub Actions and not yet tested on a device. Check it with: gh attestation verify <ipa> -R $GITHUB_REPOSITORY" \
+            || gh release upload "$TAG" ios/dist/* --clobber

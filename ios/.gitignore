@@ -1,0 +1,4 @@
+build/
+Spotifast.xcodeproj/
+DerivedData/
+*.ipa
