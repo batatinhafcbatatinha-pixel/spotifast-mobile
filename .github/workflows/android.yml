@@ -1,0 +1,103 @@
+# Builds the Android app from source on GitHub's runners: the Rust core with
+# cargo-ndk, then the APKs, signed with the key in the repository's secrets.
+# Every build gets a SHA-256 checksum and a signed build provenance
+# attestation, so anyone can check an APK came from this repository:
+#   gh attestation verify <apk> -R batatinhafcbatatinha-pixel/spotifast-mobile
+# A tag android-v* publishes them as a release.
+name: Android
+
+on:
+  push:
+    branches: [main]
+    tags: ["android-v*"]
+    paths:
+      - "android/**"
+      - "src/auth.rs"
+      - ".github/workflows/android.yml"
+  pull_request:
+    paths:
+      - "android/**"
+      - "src/auth.rs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Rust targets and cargo-ndk
+        working-directory: android/core
+        run: |
+          rustup target add aarch64-linux-android x86_64-linux-android
+          cargo install cargo-ndk --locked --version 4.1.2
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            android/core/target
+            ~/.gradle/caches
+          key: android-${{ hashFiles('android/core/Cargo.lock', 'android/**/*.gradle.kts') }}
+          restore-keys: android-
+
+      - name: Signing key
+        if: github.event_name != 'pull_request'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          echo "ANDROID_KEYSTORE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+
+      - name: Build the APKs
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          ./gradlew assembleRelease --no-daemon --console=plain
+          mkdir -p dist
+          version=$(sed -n 's/.*versionName = "\(.*\)"/\1/p' app/build.gradle.kts)
+          cp app/build/outputs/apk/release/app-arm64-v8a-release.apk "dist/spotifast-mobile-$version.apk"
+          cp app/build/outputs/apk/release/app-x86_64-release.apk "dist/spotifast-mobile-$version-x86_64.apk"
+          cd dist && sha256sum *.apk > SHA256SUMS.txt && cat SHA256SUMS.txt
+
+      - name: Attest build provenance
+        if: github.event_name != 'pull_request'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: android/dist/*.apk
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: spotifast-mobile-apk
+          path: android/dist/
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/android-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" android/dist/* --prerelease --verify-tag \
+            --title "Spotifast Mobile ${TAG#android-v}" \
+            --notes "Built from source by GitHub Actions. Check an APK with: gh attestation verify <apk> -R $GITHUB_REPOSITORY" \
+            || gh release upload "$TAG" android/dist/* --clobber

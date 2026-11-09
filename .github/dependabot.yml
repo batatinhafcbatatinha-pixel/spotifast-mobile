@@ -1,0 +1,18 @@
+# Weekly updates for the parts this fork builds: the Rust core, the Android
+# app and the GitHub Actions workflows.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /android/core
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: gradle
+    directory: /android
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
