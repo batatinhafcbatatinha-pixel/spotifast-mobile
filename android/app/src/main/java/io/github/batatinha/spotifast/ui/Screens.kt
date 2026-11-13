@@ -83,6 +83,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -448,8 +449,12 @@ private fun SongRow(song: Song, current: Boolean, onClick: () -> Unit, onQueue: 
 @Composable
 private fun CollectionScreen(vm: AppViewModel, collection: Collection) {
     val all = vm.songs[collection.uri]
-    val songs = vm.shownSongs(collection)
-    val playing = vm.player.track?.uri
+    // Sorting thousands of songs is kept for when the songs, the sort or
+    // the filter change, not redone on every recomposition.
+    val arranged = remember(collection.uri) { derivedStateOf { vm.shownSongs(collection) } }
+    val songs = arranged.value
+    // Only a change of song redraws the list, not every player update.
+    val playing by remember { derivedStateOf { vm.player.track?.uri } }
     var filtering by rememberSaveable(collection.uri) { mutableStateOf(false) }
     Column {
         TopAppBar(
@@ -525,7 +530,7 @@ private fun CollectionScreen(vm: AppViewModel, collection: Collection) {
 
 @Composable
 private fun SearchScreen(vm: AppViewModel) {
-    val playing = vm.player.track?.uri
+    val playing by remember { derivedStateOf { vm.player.track?.uri } }
     Column(Modifier.statusBarsPadding()) {
         OutlinedTextField(
             value = vm.query,
@@ -572,7 +577,9 @@ private fun SearchScreen(vm: AppViewModel) {
 private fun MiniPlayer(vm: AppViewModel) {
     val state = vm.player
     val track = state.track ?: return
-    val position = rememberPosition(vm)
+    // Read only where the bar is drawn, so the clock ticking does not
+    // recompose the whole mini player four times a second.
+    val position = rememberPositionState(vm)
     Column(
         Modifier
             .fillMaxWidth()
@@ -603,9 +610,10 @@ private fun MiniPlayer(vm: AppViewModel) {
             }
             IconButton(onClick = vm::next) { Icon(Icons.Default.SkipNext, "Next") }
         }
-        val progress = if (track.durationMs > 0) position.toFloat() / track.durationMs else 0f
         LinearProgressIndicator(
-            progress = { progress.coerceIn(0f, 1f) },
+            progress = {
+                if (track.durationMs > 0) (position.value.toFloat() / track.durationMs).coerceIn(0f, 1f) else 0f
+            },
             modifier = Modifier.fillMaxWidth().height(2.dp),
             trackColor = Track,
         )
@@ -613,12 +621,18 @@ private fun MiniPlayer(vm: AppViewModel) {
 }
 
 @Composable
-fun rememberPosition(vm: AppViewModel): Long {
-    var now by remember { mutableStateOf(vm.player.positionNow()) }
-    LaunchedEffect(vm.player) {
-        while (true) {
-            now = vm.player.positionNow()
+fun rememberPosition(vm: AppViewModel): Long = rememberPositionState(vm).value
+
+/** The playing position, ticking while the music plays and still while it is paused. */
+@Composable
+fun rememberPositionState(vm: AppViewModel): androidx.compose.runtime.State<Long> {
+    val now = remember { mutableStateOf(vm.player.positionNow()) }
+    val state = vm.player
+    LaunchedEffect(state) {
+        now.value = state.positionNow()
+        while (state.playing) {
             kotlinx.coroutines.delay(250)
+            now.value = state.positionNow()
         }
     }
     return now

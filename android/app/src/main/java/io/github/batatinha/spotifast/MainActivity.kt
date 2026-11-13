@@ -51,8 +51,14 @@ class MainActivity : ComponentActivity() {
         vm.visible = true
         // Binding a controller creates the media session service, which then
         // keeps playback alive in the background.
-        val token = SessionToken(this, ComponentName(this, PlaybackService::class.java))
-        controller = MediaController.Builder(this, token).buildAsync()
+        // Posted, so the session starts after the first frame is drawn rather
+        // than delaying it: creating the service took ~75 ms of the main
+        // thread before the first frame (Perfetto, emulator).
+        window.decorView.post {
+            if (controller != null || !lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) return@post
+            val token = SessionToken(this, ComponentName(this, PlaybackService::class.java))
+            controller = MediaController.Builder(this, token).buildAsync()
+        }
     }
 
     override fun onStop() {

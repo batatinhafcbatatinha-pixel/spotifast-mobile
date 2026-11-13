@@ -1,9 +1,16 @@
 package io.github.batatinha.spotifast
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.URLEncoder
+
+/** Where each page after the first starts, for [total] entries read [limit] at a time. */
+fun remainingOffsets(entriesRead: Int, total: Int, limit: Int): List<Int> =
+    if (entriesRead <= 0) emptyList() else (entriesRead until total step limit).toList()
 
 /** The Web API calls the interface makes, through the Rust core. */
 object Spotify {
@@ -65,14 +72,27 @@ object Spotify {
             }
         }
         val read = mutableListOf<Song>()
-        var next: String? = first
-        while (next != null) {
-            val page = get(next)
-            read += saved(page.optJSONArray("items").objects(), start = read.size)
-            onPage(read.toList(), page.optInt("total", read.size))
-            next = page.optStringOrNull("next")
+        val page = get(first)
+        read += saved(page.optJSONArray("items").objects())
+        val total = page.optInt("total", read.size)
+        onPage(read.toList(), total)
+        if (page.optStringOrNull("next") == null) return
+        // The first page says how many there are, so the rest is asked for
+        // a few pages at a time instead of one after another: 601 liked
+        // songs took 13 round trips in a row (5.1 s on the emulator).
+        val limit = page.optInt("limit", 50).coerceAtLeast(1)
+        val offsets = remainingOffsets(entriesRead = page.optJSONArray("items")?.length() ?: 0, total = total, limit = limit)
+        for (batch in offsets.chunked(PARALLEL_PAGES)) {
+            val pages = coroutineScope {
+                batch.map { offset -> async { get("$first&offset=$offset") } }.awaitAll()
+            }
+            pages.forEach { read += saved(it.optJSONArray("items").objects(), start = read.size) }
+            onPage(read.toList(), total)
         }
     }
+
+    /** Pages fetched at once; few enough to stay well inside Spotify's rate limit. */
+    private const val PARALLEL_PAGES = 4
 
     /**
      * When each playlist, album or artist was last played from, by URI, out

@@ -21,6 +21,9 @@ import org.json.JSONObject
 
 enum class Tab { Library, Search }
 
+/** Player reads after a command, 100 ms apart. */
+private const val FAST_POLLS = 20
+
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     var status by mutableStateOf(Status())
         private set
@@ -146,8 +149,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         prefs.edit().putString("song_sort", sort.name).apply()
     }
 
-    val library: List<Collection>
-        get() = arrangeLibrary(playlists + albums, librarySort, libraryShow, libraryText, userId, played)
+    /** Sorted and filtered once per change, however often the screen is drawn. */
+    private val arrangedLibrary = androidx.compose.runtime.derivedStateOf {
+        arrangeLibrary(playlists + albums, librarySort, libraryShow, libraryText, userId, played)
+    }
+    val library: List<Collection> get() = arrangedLibrary.value
 
     fun shownSongs(collection: Collection): List<Song>? =
         songs[collection.uri]?.let { arrangeSongs(it, songSort, songFilter) }
@@ -168,7 +174,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Whether the interface is on screen; the media session keeps its own watch. */
     var visible = true
-    private var userId: String? = null
+    private var userId by mutableStateOf<String?>(null)
 
     private val _openUrl = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val openUrl = _openUrl.asSharedFlow()
@@ -195,10 +201,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             while (true) {
                 if (visible) {
                     val json = runCatching { io { Native.playerState() } }.getOrNull()
-                    if (json != null) {
-                        player = PlayerState.parse(json)
-                        followCover()
-                    }
+                    if (json != null) report(PlayerState.parse(json))
                 }
                 delay(500)
             }
@@ -371,16 +374,57 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun send(json: JSONObject) = viewModelScope.launch {
+    /** Waiting for the player to catch up with what the screen shows. */
+    private var expectation: Expectation? = null
+
+    private fun report(reported: PlayerState) {
+        val (shown, waiting) = reconcile(player, reported, expectation, System.currentTimeMillis())
+        player = shown
+        expectation = waiting
+        followCover()
+    }
+
+    /**
+     * Sends a command. [shows] is what the screen displays at once, before
+     * the player has acted; [expect] holds it until the player agrees.
+     */
+    private fun send(
+        json: JSONObject,
+        shows: PlayerState? = null,
+        expect: Expectation? = null,
+    ) = viewModelScope.launch {
+        if (shows != null) {
+            player = shows
+            expectation = expect
+        }
         try {
             ensureConnected()
             io { Native.command(json.toString()) }
-            player = PlayerState.parse(io { Native.playerState() })
+            // Ask often for a moment, so the result appears as soon as the
+            // player has it rather than at the next half-second poll.
+            repeat(FAST_POLLS) {
+                report(PlayerState.parse(io { Native.playerState() }))
+                if (expectation == null && it >= 2) return@launch
+                delay(100)
+            }
         } catch (e: Exception) {
+            expectation = null
             failed(e)
             // A refused playback grant is dropped; show the setup card again.
             refreshStatus()
         }
+    }
+
+    /** The song about to play, shown at once with the player's spinner. */
+    private fun starting(song: Song): Pair<PlayerState, Expectation> {
+        val now = System.currentTimeMillis()
+        return player.copy(
+            track = song.nowPlaying(),
+            playing = true,
+            loading = true,
+            positionMs = 0,
+            positionAt = now,
+        ) to Expectation.Track(song.uri, now + 10_000)
     }
 
     /**
@@ -405,7 +449,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         playable.forEach { uris.put(it.uri) }
         val command = JSONObject().put("cmd", "load").put("uris", uris).put("shuffle", shuffle)
         if (!shuffle) command.put("index", start)
-        send(command)
+        if (shuffle) {
+            send(command)
+        } else {
+            val (shows, expect) = starting(playable[start])
+            send(command, shows, expect)
+        }
     }
 
     /** Plays [song] within [collection], or on its own when there is none. */
@@ -421,11 +470,29 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         } else if (song != null) {
             command.put("uris", JSONArray().put(song.uri))
         }
-        send(command)
+        if (song != null && !shuffle) {
+            val (shows, expect) = starting(song)
+            send(command, shows, expect)
+        } else {
+            send(command)
+        }
     }
 
-    fun toggle() = send(JSONObject().put("cmd", "toggle"))
-    fun next() = send(JSONObject().put("cmd", "next"))
+    fun toggle(): Job {
+        val now = System.currentTimeMillis()
+        val playing = !player.playing
+        return send(
+            JSONObject().put("cmd", "toggle"),
+            shows = player.copy(playing = playing, positionMs = player.positionNow(), positionAt = now),
+            expect = Expectation.Playing(playing, now + 3_000),
+        )
+    }
+    /** Shows the spinner at once; the next song's name comes from the player. */
+    fun next() = send(
+        JSONObject().put("cmd", "next"),
+        shows = player.copy(loading = true),
+        expect = Expectation.Leaves(player.track?.uri, System.currentTimeMillis() + 4_000),
+    )
     fun previous() = send(JSONObject().put("cmd", "prev"))
     fun seek(ms: Long) = send(JSONObject().put("cmd", "seek").put("ms", ms))
     fun setShuffle(on: Boolean) = send(JSONObject().put("cmd", "shuffle").put("on", on))
