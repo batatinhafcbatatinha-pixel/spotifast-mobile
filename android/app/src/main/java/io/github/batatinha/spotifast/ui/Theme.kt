@@ -35,12 +35,12 @@ data class Palette(
     val scrim: Color get() = background.copy(alpha = 0.85f)
 }
 
-private val DarkBase = Palette(
+internal val DarkBase = Palette(
     accent = Color(0xFF1ED760), background = Color(0xFF0F1114), surface = Color(0xFF181B20),
     raised = Color(0xFF2A2F36), track = Color(0xFF4A5059), muted = Color(0xFFA5ADBA),
     text = Color(0xFFE8EAED), dark = true,
 )
-private val LightBase = Palette(
+internal val LightBase = Palette(
     accent = Color(0xFF128A3E), background = Color(0xFFF7F8FA), surface = Color(0xFFECEEF2),
     raised = Color(0xFFE1E4EA), track = Color(0xFFC5CAD3), muted = Color(0xFF5F6670),
     text = Color(0xFF15181C), dark = false,
@@ -133,7 +133,10 @@ enum class Appearance(val label: String, val palette: Palette?) {
         "Rose",
         Palette(Color(0xFFD63384), Color(0xFFFFF0F6), Color(0xFFFCE1EC), Color(0xFFF8CCDD),
             Color(0xFFF1A7C5), Color(0xFF8C5A70), Color(0xFF3A1027), dark = false),
-    );
+    ),
+
+    /** A theme imported from a file; which one is saved beside it. */
+    Custom("Your theme", null);
 
     /** Whether the accent colour can be chosen. */
     val takesAccent: Boolean get() = this in setOf(System, Dark, Light, Black)
@@ -167,12 +170,14 @@ private fun dynamic(cover: CoverColors?): Palette {
     )
 }
 
-private fun palette(appearance: Appearance, accent: Accent, systemDark: Boolean, cover: CoverColors?): Palette =
+/** The colours shown for a choice; [custom] is the imported theme selected, if any. */
+fun palette(appearance: Appearance, accent: Accent, systemDark: Boolean, cover: CoverColors?, custom: Palette? = null): Palette =
     when (appearance) {
         Appearance.System -> if (systemDark) DarkBase.copy(accent = accent.dark) else LightBase.copy(accent = accent.light)
         Appearance.Dark, Appearance.Black -> appearance.palette!!.copy(accent = accent.dark)
         Appearance.Light -> LightBase.copy(accent = accent.light)
         Appearance.Dynamic -> dynamic(cover)
+        Appearance.Custom -> custom ?: if (systemDark) DarkBase.copy(accent = accent.dark) else LightBase.copy(accent = accent.light)
         else -> appearance.palette!!
     }
 
@@ -191,9 +196,10 @@ fun SpotifastTheme(
     appearance: Appearance = Appearance.System,
     accent: Accent = Accent.Green,
     cover: CoverColors? = null,
+    custom: Palette? = null,
     content: @Composable () -> Unit,
 ) {
-    val p = palette(appearance, accent, isSystemInDarkTheme(), cover)
+    val p = palette(appearance, accent, isSystemInDarkTheme(), cover, custom)
     val onAccent = if (p.accent.luminance() > 0.4f) Color(0xFF0F1114) else Color.White
     val scheme = if (p.dark) {
         darkColorScheme(

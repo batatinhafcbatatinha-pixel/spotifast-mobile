@@ -1,0 +1,11 @@
+{
+  "name": "Everforest Light",
+  "dark": false,
+  "accent": "#8DA101",
+  "background": "#FDF6E3",
+  "surface": "#F4F0D9",
+  "raised": "#EFEBD4",
+  "track": "#BDC3AF",
+  "muted": "#829181",
+  "text": "#5C6A72"
+}

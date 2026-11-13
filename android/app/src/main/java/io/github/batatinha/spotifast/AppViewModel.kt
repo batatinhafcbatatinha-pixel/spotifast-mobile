@@ -90,6 +90,51 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         followCover()
     }
 
+    // ----- Themes people make (THEMES.md) -----
+
+    var customThemes by mutableStateOf(io.github.batatinha.spotifast.ui.CustomTheme.listFrom(prefs.getString("custom_themes", null)))
+        private set
+
+    /** The imported theme in use, when [appearance] is Custom. */
+    val customTheme: io.github.batatinha.spotifast.ui.CustomTheme?
+        get() = if (appearance == io.github.batatinha.spotifast.ui.Appearance.Custom) {
+            customThemes.firstOrNull { it.name == customName }
+        } else {
+            null
+        }
+    private var customName by mutableStateOf(prefs.getString("custom_theme", null))
+
+    /**
+     * Adds a theme from its JSON and switches to it. One with the same name
+     * replaces the old one, so editing a theme and importing it again works.
+     * Returns why it could not be read, or null.
+     */
+    fun importTheme(text: String): String? {
+        val theme = try {
+            io.github.batatinha.spotifast.ui.CustomTheme.parse(text)
+        } catch (e: IllegalArgumentException) {
+            return e.message
+        }
+        customThemes = customThemes.filterNot { it.name == theme.name } + theme
+        prefs.edit().putString("custom_themes", io.github.batatinha.spotifast.ui.CustomTheme.store(customThemes)).apply()
+        useCustomTheme(theme)
+        return null
+    }
+
+    fun useCustomTheme(theme: io.github.batatinha.spotifast.ui.CustomTheme) {
+        customName = theme.name
+        prefs.edit().putString("custom_theme", theme.name).apply()
+        setTheme(io.github.batatinha.spotifast.ui.Appearance.Custom, accent)
+    }
+
+    fun removeTheme(theme: io.github.batatinha.spotifast.ui.CustomTheme) {
+        customThemes = customThemes - theme
+        prefs.edit().putString("custom_themes", io.github.batatinha.spotifast.ui.CustomTheme.store(customThemes)).apply()
+        if (customTheme == null && appearance == io.github.batatinha.spotifast.ui.Appearance.Custom) {
+            setTheme(io.github.batatinha.spotifast.ui.Appearance.System, accent)
+        }
+    }
+
     fun sortLibrary(sort: LibrarySort) {
         librarySort = sort
         prefs.edit().putString("library_sort", sort.name).apply()

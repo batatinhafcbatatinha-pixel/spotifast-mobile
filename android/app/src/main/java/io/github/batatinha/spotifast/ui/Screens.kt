@@ -1,6 +1,14 @@
 package io.github.batatinha.spotifast.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.automirrored.filled.Sort
@@ -733,22 +741,43 @@ private fun EmptyNote(text: String) {
 
 @Composable
 private fun ThemeDialog(vm: AppViewModel, onDismiss: () -> Unit) {
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
+    var message by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    // The system file picker: no storage permission, and only the file chosen is read.
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            val text = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        val bytes = input.readNBytesCompat(CustomTheme.MAX_BYTES + 1)
+                        String(bytes, Charsets.UTF_8)
+                    }
+                }.getOrNull()
+            }
+            message = if (text == null) "Could not read that file." else vm.importTheme(text) ?: "Theme added."
+        }
+    }
+    val current = LocalPalette.current
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Theme") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Appearance.entries.forEach { appearance ->
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { vm.setTheme(appearance, vm.accent) }
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = vm.appearance == appearance, onClick = { vm.setTheme(appearance, vm.accent) })
-                        Text(appearance.label)
+                Appearance.entries.filter { it != Appearance.Custom }.forEach { appearance ->
+                    ThemeChoice(appearance.label, vm.appearance == appearance, onClick = { vm.setTheme(appearance, vm.accent) })
+                }
+                if (vm.customThemes.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text("Your themes", fontWeight = FontWeight.SemiBold)
+                    vm.customThemes.forEach { theme ->
+                        ThemeChoice(theme.name, vm.customTheme == theme, onClick = { vm.useCustomTheme(theme) }) {
+                            IconButton(onClick = { vm.removeTheme(theme) }) {
+                                Icon(Icons.Default.Delete, "Remove ${theme.name}", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                     }
                 }
                 if (vm.appearance.takesAccent) {
@@ -756,7 +785,7 @@ private fun ThemeDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                 Text("Accent colour", fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    val dark = LocalPalette.current.dark
+                    val dark = current.dark
                     Accent.entries.forEach { accent ->
                         val colour = if (dark) accent.dark else accent.light
                         Box(
@@ -774,8 +803,60 @@ private fun ThemeDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                     }
                 }
                 }
+                Spacer(Modifier.height(12.dp))
+                Text("Make your own", fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Import a theme file, paste one you copied, or copy this theme to start from it. THEMES.md on GitHub explains the format.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { pick.launch(arrayOf("application/json", "text/*", "application/octet-stream")) }) {
+                        Text("Import file")
+                    }
+                    OutlinedButton(onClick = {
+                        val text = clipboard.getText()?.text
+                        message = if (text.isNullOrBlank()) "The clipboard is empty." else vm.importTheme(text) ?: "Theme added."
+                    }) { Text("Paste") }
+                    OutlinedButton(onClick = {
+                        val name = vm.customTheme?.name ?: "My ${vm.appearance.label}"
+                        clipboard.setText(AnnotatedString(current.toJson(name).toString(2)))
+                        message = "Copied this theme as JSON."
+                    }) { Text("Copy") }
+                }
+                message?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
     )
+}
+
+@Composable
+private fun ThemeChoice(label: String, selected: Boolean, onClick: () -> Unit, trailing: @Composable () -> Unit = {}) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Text(label, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        trailing()
+    }
+}
+
+/** InputStream.readNBytes arrived in API 33; this caps the read the same way. */
+private fun java.io.InputStream.readNBytesCompat(limit: Int): ByteArray {
+    val out = java.io.ByteArrayOutputStream()
+    val buffer = ByteArray(4096)
+    while (out.size() < limit) {
+        val n = read(buffer, 0, minOf(buffer.size, limit - out.size()))
+        if (n < 0) break
+        out.write(buffer, 0, n)
+    }
+    return out.toByteArray()
 }

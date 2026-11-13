@@ -101,4 +101,8 @@ dependencies {
     implementation("androidx.palette:palette-ktx:1.0.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.10.2")
+
+    testImplementation("junit:junit:4.13.2")
+    // Android's org.json is a stub in local unit tests; this is the real one.
+    testImplementation("org.json:json:20250517")
 }

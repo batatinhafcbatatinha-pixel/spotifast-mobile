@@ -40,7 +40,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         setContent {
-            SpotifastTheme(vm.appearance, vm.accent, vm.cover) {
+            SpotifastTheme(vm.appearance, vm.accent, vm.cover, vm.customTheme?.palette) {
                 SpotifastRoot(vm)
             }
         }

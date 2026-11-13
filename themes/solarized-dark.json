@@ -1,0 +1,11 @@
+{
+  "name": "Solarized Dark",
+  "dark": true,
+  "accent": "#B58900",
+  "background": "#002B36",
+  "surface": "#073642",
+  "raised": "#0E4552",
+  "track": "#586E75",
+  "muted": "#93A1A1",
+  "text": "#FDF6E3"
+}

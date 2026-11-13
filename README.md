@@ -67,6 +67,14 @@ you can choose:
 - **Something different**: 80s synthwave, 90s vaporwave, Terminal,
   Cyberpunk, Coffee and Rose. Some use the phone's own monospace or serif
   type, so they add nothing to the download.
+- **Your own**: import a theme file or paste one you copied, under
+  **Make your own** in the same dialog.
+
+**Want a look nobody else has?** See [how to create or customise your own
+theme](THEMES.md): it is a small JSON file you can write on your phone,
+start from any theme with one tap, and share with friends. Browse the
+[community themes](themes/) for ready-made ones, or add yours there in a
+pull request.
 
 ## Everything you play, your way
 

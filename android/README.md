@@ -42,7 +42,9 @@ android/
   and AMOLED black with an accent colour; a dynamic theme coloured by the
   cover playing; and presets after popular Spicetify themes (Catppuccin
   Mocha and Latte, Dracula, Nord, Gruvbox, Fluent, Comfy, Throwback) plus
-  80s synthwave, 90s vaporwave, Terminal, Cyberpunk, Coffee and Rose
+  80s synthwave, 90s vaporwave, Terminal, Cyberpunk, Coffee and Rose;
+  and your own, imported from a JSON file or pasted (see
+  [THEMES.md](../THEMES.md))
 - Small and constant on storage: no audio or image cache on disk
 
 Not yet: offline downloads (librespot cannot), lyrics, podcasts browsing,

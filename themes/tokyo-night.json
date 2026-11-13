@@ -1,0 +1,11 @@
+{
+  "name": "Tokyo Night",
+  "dark": true,
+  "accent": "#7AA2F7",
+  "background": "#1A1B26",
+  "surface": "#16161E",
+  "raised": "#292E42",
+  "track": "#3B4261",
+  "muted": "#A9B1D6",
+  "text": "#C0CAF5"
+}
