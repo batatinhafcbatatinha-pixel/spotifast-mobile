@@ -342,6 +342,23 @@ pub enum TokenEndpointError {
     Unreachable(String),
 }
 
+/// An error and what caused it. reqwest's own message is only "error
+/// sending request"; the cause (DNS, TLS, refused connection) is the part
+/// that says what to fix.
+fn with_causes(error: &dyn std::error::Error) -> String {
+    let mut message = error.to_string();
+    let mut source = error.source();
+    while let Some(cause) = source {
+        let cause_text = cause.to_string();
+        if !message.contains(&cause_text) {
+            message.push_str(": ");
+            message.push_str(&cause_text);
+        }
+        source = cause.source();
+    }
+    message
+}
+
 async fn token_request(
     http: &reqwest::Client,
     form: &[(&str, &str)],
@@ -351,7 +368,7 @@ async fn token_request(
         .form(form)
         .send()
         .await
-        .map_err(|error| TokenEndpointError::Unreachable(error.to_string()))?;
+        .map_err(|error| TokenEndpointError::Unreachable(with_causes(&error)))?;
     let status = response.status();
     let text = response.text().await.unwrap_or_default();
     decode_token_response(status, &text)

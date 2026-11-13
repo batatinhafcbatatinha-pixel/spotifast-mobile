@@ -223,35 +223,43 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         io { Native.beginWebLogin(clientId.trim()) }
     }.also { it.invokeOnCompletion { viewModelScope.launch { if (status.webSignedIn) loadLibrary() } } }
 
-    fun setUpPlayback() = login("Waiting for playback approval…") {
-        io { Native.beginPlaybackLogin() }
-    }.also {
-        it.invokeOnCompletion {
-            viewModelScope.launch {
-                if (status.playbackSignedIn) {
-                    busy = "Connecting playback…"
-                    try {
-                        io { Native.connect(deviceName) }
-                    } catch (e: Exception) {
-                        failed(e)
-                    }
-                    busy = null
-                    refreshStatus()
+    fun setUpPlayback() = login(
+        "Waiting for playback approval…",
+        // Connecting runs while the browser may still be in front, so it
+        // stays inside the sign-in's foreground service.
+        after = {
+            refreshStatus()
+            if (status.playbackSignedIn) {
+                busy = "Connecting playback…"
+                try {
+                    io { Native.connect(deviceName) }
+                } catch (e: Exception) {
+                    failed(e)
                 }
             }
-        }
+        },
+    ) {
+        io { Native.beginPlaybackLogin() }
     }
 
-    private fun login(message: String, begin: suspend () -> String): Job = viewModelScope.launch {
+    private fun login(
+        message: String,
+        after: suspend () -> Unit = {},
+        begin: suspend () -> String,
+    ): Job = viewModelScope.launch {
         error = null
         try {
             val url = begin()
             busy = message
+            // Started while the app is still in front, as Android requires.
+            SignInService.start(getApplication())
             _openUrl.emit(url)
             io { Native.awaitLogin() }
+            after()
         } catch (e: Exception) {
             failed(e)
         } finally {
+            SignInService.stop(getApplication())
             busy = null
             refreshStatus()
         }

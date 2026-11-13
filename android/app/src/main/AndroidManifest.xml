@@ -37,5 +37,11 @@
                 <action android:name="androidx.media3.session.MediaSessionService" />
             </intent-filter>
         </service>
+
+        <!-- Keeps a sign-in alive while the browser is in front (SignInService). -->
+        <service
+            android:name=".SignInService"
+            android:exported="false"
+            android:foregroundServiceType="shortService" />
     </application>
 </manifest>
