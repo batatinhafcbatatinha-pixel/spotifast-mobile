@@ -12,8 +12,8 @@ android {
         applicationId = "io.github.batatinha.spotifast"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10
-        versionName = "0.2.3"
+        versionCode = 11
+        versionName = "0.2.4"
     }
 
     // One APK per architecture, so a phone downloads only its own library.
